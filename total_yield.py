@@ -121,35 +121,35 @@ if __name__ == '__main__':
     experiment2_final_cleaned.reset_index(drop=True, inplace=True)
 
     # Remove rows with negative weight values from both datasets
-    experiment1_df = experiment1_final_cleaned[experiment1_final_cleaned['weight'] >= 0]
-    experiment2_df = experiment2_final_cleaned[experiment2_final_cleaned['weight'] >= 0]
+    df_exp1 = experiment1_final_cleaned[experiment1_final_cleaned['weight'] >= 0]
+    df_exp2 = experiment2_final_cleaned[experiment2_final_cleaned['weight'] >= 0]
 
     # Calculate the number of fruits and total weight for each plant in both datasets
-    experiment1_plant_stats = experiment1_df.groupby('plant_number').agg(
+    experiment1_plant_stats = df_exp1.groupby('plant_number').agg(
         number_of_fruits_per_plant=('weight', 'count'),
         yield_per_plant=('weight', 'sum')
     ).reset_index()
 
-    experiment2_plant_stats = experiment2_df.groupby('plant_number').agg(
+    experiment2_plant_stats = df_exp2.groupby('plant_number').agg(
         number_of_fruits_per_plant=('weight', 'count'),
         yield_per_plant=('weight', 'sum')
     ).reset_index()
     # Merge plant-level stats with treatments and cultivars for both datasets
     experiment1_plant_stats = experiment1_plant_stats.merge(
-        experiment1_df[['plant_number', 'treatment', 'cultivar']].drop_duplicates(),
+        df_exp1[['plant_number', 'treatment', 'cultivar']].drop_duplicates(),
         on='plant_number',
         how='left'
     )
 
     experiment2_plant_stats = experiment2_plant_stats.merge(
-        experiment2_df[['plant_number', 'treatment', 'cultivar']].drop_duplicates(),
+        df_exp2[['plant_number', 'treatment', 'cultivar']].drop_duplicates(),
         on='plant_number',
         how='left'
     )
 
     # Calculate statistics
-    descriptive_stats(experiment1_df,
-                      experiment2_df)
+    descriptive_stats(df_exp1,
+                      df_exp2)
 
     # ANOVA and Tukey's HSD
     anova_exp1_cultivar, tukey_exp1_cultivar, tukey_sign_groups_exp1_cultivar = plst.anova_and_tukey_stats(
@@ -186,8 +186,7 @@ if __name__ == '__main__':
     plst.plot_paired_histograms(
         experiment1_plant_stats,
         experiment2_plant_stats,
-        'yield_per_plant',
-        'g'
+        'number_of_fruits_per_plant'
     )
 
     # Plotting paired boxplots with Tukey HSD significance annotations
