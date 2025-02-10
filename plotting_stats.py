@@ -12,35 +12,55 @@ def anova_and_tukey_stats(data: pd.DataFrame,
                           groups: str,
                           alpha: float = 0.05):
     """
-    Gets ANOVA, Tukey's HSD, and plottable tukey groups statistics for boxplots
-    :param data: Dataframe for Exp data
-    :param values: Values to run ANOVA on
-    :param groups: Which parameter to group by
-    :param alpha: Alpha, usually 0.05
-    :return: ANOVA results, Tukey's HSD results, and a dictionary with plottable Tukey significance groups statistics for boxplots
+    Gets ANOVA, Tukey's HSD, and plottable Tukey group statistics for boxplots.
+    :param data: DataFrame for experimental data.
+    :param values: Column name with values to run ANOVA on.
+    :param groups: Column name with categorical groups.
+    :param alpha: Significance level (default: 0.05).
+    :return: ANOVA results, Tukey's HSD results, and a dictionary with formatted Tukey significance groups.
     """
+    # Perform ANOVA
     anova = ols(f"{values} ~ C({groups})", data=data).fit()
     anova_results = sm.stats.anova_lm(anova, typ=2)
-    tukey_results = pairwise_tukeyhsd(
-        endog=data[values],
-        groups=data[groups],
-        alpha=alpha
-    )
 
+    # Perform Tukey's HSD
+    tukey_results = pairwise_tukeyhsd(endog=data[values], groups=data[groups], alpha=alpha)
     results = pd.DataFrame(tukey_results.summary().data[1:], columns=tukey_results.summary().data[0])
-    groups = tukey_results.groupsunique
-    significant_pairs = results[results["reject"] == False][["group1", "group2"]]
 
-    # Initialize groups
-    group_labels = {group: set([chr(65 + i)]) for i, group in enumerate(groups)}
+    # Extract unique groups
+    unique_groups = sorted(tukey_results.groupsunique)
 
-    # Merge non-significant groups
-    for _, (group1, group2) in significant_pairs.iterrows():
-        group_labels[group1] = group_labels[group1].union(group_labels[group2])
-        group_labels[group2] = group_labels[group1]
+    # Dictionary to store letter assignments
+    group_letters = {group: set() for group in unique_groups}
 
-    # Assign final group letters
-    tukey_groups = {group: "".join(sorted(group_labels[group])) for group in groups}
+    # Start letter assignment
+    assigned_letters = []  # List of sets containing grouped treatments
+    letter = ord('a')  # ASCII value for 'a'
+
+    for group in unique_groups:
+        possible_letters = set()
+        for existing_group in assigned_letters:
+            # Check if the group is NOT significantly different from any member of an existing group
+            non_significant = results[
+                ((results["group1"] == group) & (results["group2"].isin(existing_group))) |
+                ((results["group2"] == group) & (results["group1"].isin(existing_group)))
+                ]["reject"].eq(False).all()
+
+            if non_significant:
+                possible_letters.update(group_letters[next(iter(existing_group))])
+                existing_group.add(group)
+
+        # If no matching group was found, assign a new letter
+        if not possible_letters:
+            possible_letters.add(chr(letter))
+            assigned_letters.append({group})
+            letter += 1
+
+        group_letters[group] = possible_letters
+
+    # Convert sets to sorted, comma-separated strings
+    tukey_groups = {group: ", ".join(sorted(group_letters[group])) for group in unique_groups}
+
     return anova_results, tukey_results, tukey_groups
 
 
@@ -254,19 +274,6 @@ def plot_boxplot_pairs(data1: pd.DataFrame,
     """
     # Create a figure with two subplots side by side
     fig, axes = plt.subplots(1, 2, figsize=(20, 8), sharey=True)
-    if y_units:
-        y_formatted = f"{y.replace('_', ' ').title()}, {y_units}"
-    else:
-        y_formatted = y.replace('_', ' ').title()
-    if x_units:
-        x_formatted = f"{x.replace('_', ' ').title()}, {x_units}"
-    else:
-        x_formatted = x.replace('_', ' ').title()
-    if hue_units:
-        hue_formatted = f"{hue.replace('_', ' ').title()}, {y_units}"
-    else:
-        hue_formatted = hue.replace('_', ' ').title()
-
     # Boxplot 1: Experiment 1
     sns.boxplot(
         ax=axes[0],
@@ -288,28 +295,6 @@ def plot_boxplot_pairs(data1: pd.DataFrame,
         alpha=0.7
     )
 
-    # Add Tukey group annotations for Experiment 1
-    ylim1 = axes[0].get_ylim()  # Get y-axis limits for the second subplot
-    y_offset1 = ylim1[1] - (ylim1[1] - ylim1[0]) * 0.035  # Adjust position as a percentage of the axis range
-    for i, value in enumerate(sign_gr1.keys()):
-        axes[0].text(
-            i,
-            y_offset1,
-            sign_gr1[value],
-            horizontalalignment='center',
-            fontsize=16,
-            color='black'
-        )
-
-
-    axes[0].set_title(f"Boxplot of {y_formatted} by {x_formatted} (Exp. #1)")
-    axes[0].set_xlabel(f"{x_formatted}")
-    axes[0].set_ylabel(f"{y_formatted}")
-    axes[0].legend(title=f"{hue_formatted}",
-                   loc='upper right',
-                   bbox_to_anchor=(1, 0.95))
-    axes[0].grid(axis='y', linestyle='--', alpha=0.7)
-
     # Boxplot 2: Experiment 2
     sns.boxplot(
         ax=axes[1],
@@ -330,21 +315,56 @@ def plot_boxplot_pairs(data1: pd.DataFrame,
         size=8,
         alpha=0.7
     )
+    # Set a position for Tukey's notation
+    ylim_left = axes[0].get_ylim()  # Get y-axis limits for the second subplot
+    ylim_right = axes[1].get_ylim()
+    ylim_max = max(ylim_left[1], ylim_right[1])   # Adjust position as a percentage of the axis range
+    ylim_min = min(ylim_left[0], ylim_right[0])
+    y_offset = ylim_max - (ylim_max - ylim_min) * 0.035  # Adjust position as a percentage of the axis range
 
+    # Add Tukey group annotations for Experiment 1
+    for i, value in enumerate(sign_gr1.keys()):
+        axes[0].text(
+            i,
+            y_offset,
+            sign_gr1[value],
+            horizontalalignment='center',
+            fontsize=16,
+            color='black'
+        )
     # Add Tukey group annotations for Experiment 2
-    ylim2 = axes[1].get_ylim()  # Get y-axis limits for the second subplot
-    y_offset2 = ylim2[1] - (ylim2[1] - ylim2[0]) * 0.035  # Adjust position as a percentage of the axis range
-
     for i, value in enumerate(sign_gr2.keys()):
         axes[1].text(
             i,
-            y_offset2,
+            y_offset,
             sign_gr2[value],
             horizontalalignment='center',
             fontsize=16,
             color='black'
         )
 
+    # Format text
+    if y_units:
+        y_formatted = f"{y.replace('_', ' ').title()}, {y_units}"
+    else:
+        y_formatted = y.replace('_', ' ').title()
+    if x_units:
+        x_formatted = f"{x.replace('_', ' ').title()}, {x_units}"
+    else:
+        x_formatted = x.replace('_', ' ').title()
+    if hue_units:
+        hue_formatted = f"{hue.replace('_', ' ').title()}, {y_units}"
+    else:
+        hue_formatted = hue.replace('_', ' ').title()
+
+    # Create plot elements
+    axes[0].set_title(f"Boxplot of {y_formatted} by {x_formatted} (Exp. #1)")
+    axes[0].set_xlabel(f"{x_formatted}")
+    axes[0].set_ylabel(f"{y_formatted}")
+    axes[0].legend(title=f"{hue_formatted}",
+                   loc='upper right',
+                   bbox_to_anchor=(1, 0.95))
+    axes[0].grid(axis='y', linestyle='--', alpha=0.7)
     axes[1].set_title(f"Boxplot of {y_formatted} by {x_formatted} (Exp. #2)")
     axes[1].set_xlabel(f"{x_formatted}")
     axes[1].set_ylabel("")
@@ -396,19 +416,6 @@ def plot_boxplot_coupled(data: pd.DataFrame,
     """
     # Create a figure with two subplots side by side
     fig, axes = plt.subplots(1, 2, figsize=(20, 8), sharey=True)
-    if y_units:
-        y_formatted = f"{y.replace('_', ' ').title()}, {y_units}"
-    else:
-        y_formatted = y.replace('_', ' ').title()
-    if x1_units:
-        x1_formatted = f"{x1.replace('_', ' ').title()}, {x1_units}"
-    else:
-        x1_formatted = x1.replace('_', ' ').title()
-    if x2_units:
-        x2_formatted = f"{x2.replace('_', ' ').title()}, {x2_units}"
-    else:
-        x2_formatted = x2.replace('_', ' ').title()
-
     # Boxplot 1: Group 1
     sns.boxplot(
         ax=axes[0],
@@ -429,28 +436,6 @@ def plot_boxplot_coupled(data: pd.DataFrame,
         size=8,
         alpha=0.7
     )
-
-    # Add Tukey group annotations for Experiment 1
-    ylim1 = axes[0].get_ylim()  # Get y-axis limits for the second subplot
-    y_offset1 = ylim1[1] - (ylim1[1] - ylim1[0]) * 0.035  # Adjust position as a percentage of the axis range
-    for i, value in enumerate(sign_gr1.keys()):
-        axes[0].text(
-            i,
-            y_offset1,
-            sign_gr1[value],
-            horizontalalignment='center',
-            fontsize=16,
-            color='black'
-        )
-
-    axes[0].set_title(f"Boxplot of {y_formatted} by {x1_formatted}")
-    axes[0].set_xlabel(f"{x1_formatted}")
-    axes[0].set_ylabel(f"{y_formatted}")
-    axes[0].legend(title=f"{x2_formatted}",
-                   loc='upper right',
-                   bbox_to_anchor=(1, 0.95))
-    axes[0].grid(axis='y', linestyle='--', alpha=0.7)
-
     # Boxplot 2: Group 2
     sns.boxplot(
         ax=axes[1],
@@ -472,20 +457,56 @@ def plot_boxplot_coupled(data: pd.DataFrame,
         alpha=0.7
     )
 
-    # Add Tukey group annotations for Experiment 2
-    ylim2 = axes[1].get_ylim()  # Get y-axis limits for the second subplot
-    y_offset2 = ylim2[1] - (ylim2[1] - ylim2[0]) * 0.035  # Adjust position as a percentage of the axis range
+    # Set a position for Tukey's notation
+    ylim_left = axes[0].get_ylim()  # Get y-axis limits for the subplots
+    ylim_right = axes[1].get_ylim()
+    ylim_max = max(ylim_left[1], ylim_right[1])   # Find min and max so that both notations are at the same level
+    ylim_min = min(ylim_left[0], ylim_right[0])
+    y_offset = ylim_max - (ylim_max - ylim_min) * 0.035  # Adjust position as a percentage of the axis range
 
+    # Add Tukey group annotations for Experiment 1
+    for i, value in enumerate(sign_gr1.keys()):
+        axes[0].text(
+            i,
+            y_offset,
+            sign_gr1[value],
+            horizontalalignment='center',
+            fontsize=16,
+            color='black'
+        )
+    # Add Tukey group annotations for Experiment 2
     for i, value in enumerate(sign_gr2.keys()):
         axes[1].text(
             i,
-            y_offset2,
+            y_offset,
             sign_gr2[value],
             horizontalalignment='center',
             fontsize=16,
             color='black'
         )
 
+    # Format text
+    if y_units:
+        y_formatted = f"{y.replace('_', ' ').title()}, {y_units}"
+    else:
+        y_formatted = y.replace('_', ' ').title()
+    if x1_units:
+        x1_formatted = f"{x1.replace('_', ' ').title()}, {x1_units}"
+    else:
+        x1_formatted = x1.replace('_', ' ').title()
+    if x2_units:
+        x2_formatted = f"{x2.replace('_', ' ').title()}, {x2_units}"
+    else:
+        x2_formatted = x2.replace('_', ' ').title()
+
+    # Create plot elements
+    axes[0].set_title(f"Boxplot of {y_formatted} by {x1_formatted}")
+    axes[0].set_xlabel(f"{x1_formatted}")
+    axes[0].set_ylabel(f"{y_formatted}")
+    axes[0].legend(title=f"{x2_formatted}",
+                   loc='upper right',
+                   bbox_to_anchor=(1, 0.95))
+    axes[0].grid(axis='y', linestyle='--', alpha=0.7)
     axes[1].set_title(f"Boxplot of {y_formatted} by {x2_formatted}")
     axes[1].set_xlabel(f"{x2_formatted}")
     axes[1].set_ylabel("")
