@@ -53,14 +53,14 @@ def assign_treatment_and_cultivar(plant_number):
         treatment = 'T3'
     else:
         return None, None
-    if 1 <= plant_number % 15 <= 5:
+    mod_val = plant_number % 15
+    if mod_val == 0 or 1 <= mod_val <= 5:
         cultivar = 'Mohammed'
-    elif 6 <= plant_number % 15 <= 10:
+    elif 6 <= mod_val <= 10:
         cultivar = 'Hahms Gelbe'
-    elif 11 <= plant_number % 15 <= 15:
+    else:  # 11 <= mod_val <= 14 (since 0 is handled above)
         cultivar = 'Red Robin'
-    else:
-        return None, None
+
     return treatment, cultivar
 
 
