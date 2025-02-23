@@ -89,7 +89,7 @@ def plot_single_histogram(data: pd.DataFrame,
 
     # Create the plot
     plt.figure(figsize=(8, 6))
-    plt.hist(data[column], bins=20, color='skyblue', edgecolor='black', alpha=0.7)
+    plt.hist(data[column], bins=10, color='skyblue', edgecolor='black', alpha=0.7)
     plt.title(f"Histogram of the {column_formatted}")
     plt.xlabel(f"{column_formatted}")
     plt.ylabel("Frequency")
@@ -217,7 +217,7 @@ def plot_paired_histograms(data1: pd.DataFrame,
 
     # First experiment
     plt.subplot(1, 2, 1)
-    plt.hist(data1[column], bins=20, color='skyblue', edgecolor='black', alpha=0.7)
+    plt.hist(data1[column], bins=10, color='skyblue', edgecolor='black', alpha=0.7)
     plt.title(f"Histogram of the {column_formatted} (Exp. #1)")
     plt.xlabel(f"{column_formatted}")
     plt.ylabel("Frequency")
@@ -225,7 +225,7 @@ def plot_paired_histograms(data1: pd.DataFrame,
 
     # Second experiment
     plt.subplot(1, 2, 2)
-    plt.hist(data2[column], bins=20, color='salmon', edgecolor='black', alpha=0.7)
+    plt.hist(data2[column], bins=10, color='salmon', edgecolor='black', alpha=0.7)
     plt.title(f"Histogram of the {column_formatted} (Exp. #2)")
     if units:
         plt.xlabel(f"{column_formatted}")
