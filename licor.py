@@ -68,15 +68,17 @@ def assign_treatment_and_cultivar(plant_number):
 
 
 if __name__ == '__main__':
-    # Set paths
-    filepath2104 = 'unified_21-04.xlsx'
-    filepath1605 = 'unified_16-05.xlsx'
-    filepath2410 = 'unified_24-10.xlsx'
-    filepath2912 = 'unified_29-12.xlsx'
+    data_folder_path = 'C:/Users/dusen/Documents/PhD/Fruit Quality'
+    file_name = 'licor.csv'
+    categories = ['treatment']
+
+    file_path = os.path.join(data_folder_path, file_name)
+    df = pd.read_csv(file_path)
+    print(df.to_string())
 
     # Set experiment codenames or numbers, grouping rules, and a list of parameters with values
-    exps = [1, 2]
-    groups = ['measurement', 'treatment', 'cultivar', 'treatment_cultivar', 'leaf_position']
+    exps = ["summer", "winter"]
+    groups = ['treatment', 'cultivar', 'leaf_position']
     values = ['gsw', 'Adyn', 'Edyn']
     units = {'gsw': 'mol m-2 s-1',
              'Adyn': 'µmol m-2 s-1',
@@ -86,74 +88,6 @@ if __name__ == '__main__':
     plt.rcParams.update({'font.size': 16})
     sns.set_context("notebook", font_scale=1.5)
 
-    # Load data
-    df2104 = pd.read_excel(filepath2104)
-    df1605 = pd.read_excel(filepath1605)
-    df2410 = pd.read_excel(filepath2410)
-    df2912 = pd.read_excel(filepath2912)
-
-    for df in [df2104, df2410]:
-        for x in df.index:
-            df.loc[x, 'measurement'] = 1
-    for df in [df1605, df2912]:
-        for x in df.index:
-            df.loc[x, 'measurement'] = 2
-
-    # Preprocess the data
-    df_exp1 = pd.concat([df1605, df2104], ignore_index=True, axis=0)
-    df_exp2 = pd.concat([df2410, df2912], ignore_index=True, axis=0)
-
-    for x in df_exp1.index:
-        df_exp1.loc[x, 'exp_number'] = 1
-    for x in df_exp2.index:
-        df_exp2.loc[x, 'exp_number'] = 2
-
-    # Assign treatment and cultivar for the first dataset
-    df_exp1[['treatment', 'cultivar']] = df_exp1['plant_number'].apply(
-        lambda x: pd.Series(assign_treatment_and_cultivar(x))
-    )
-    df_exp2[['treatment', 'cultivar']] = df_exp2['plant_number'].apply(
-        lambda x: pd.Series(assign_treatment_and_cultivar(x))
-    )
-
-    # Create fields for the leaf positions
-    for df in [df_exp1, df_exp2]:
-        for x in df.index:
-            if df.loc[x, 'big/small'] == 1:
-                df.loc[x, 'leaf_size'] = 'big'
-            elif df.loc[x, 'big/small'] == 2:
-                df.loc[x, 'leaf_size'] = 'small'
-            if df.loc[x, 'bottom/middle/top'] == 1:
-                df.loc[x, 'leaf_position'] = 'bottom'
-            elif df.loc[x, 'bottom/middle/top'] == 2:
-                df.loc[x, 'leaf_position'] = 'middle'
-            elif df.loc[x, 'bottom/middle/top'] == 3:
-                df.loc[x, 'leaf_position'] = 'top'
-            df.loc[x, 'leaf'] = f"{df.loc[x, 'leaf_position']}_{df.loc[x, 'leaf_size']}"
-            df.loc[x, 'treatment_cultivar'] = f"{df.loc[x, 'treatment']}_{df.loc[x, 'cultivar']}"
-
-    columns = ['exp_number',
-               'plant_number',
-               'cultivar',
-               'treatment',
-               'measurement',
-               'treatment_cultivar',
-               'leaf_size',
-               'leaf_position',
-               'leaf',
-               'Adyn',
-               'Edyn',
-               'gsw']
-    df_exp1 = df_exp1[columns]
-    df_exp2 = df_exp2[columns]
-    df_exp1.reset_index(drop=True, inplace=True)
-    df_exp2.reset_index(drop=True, inplace=True)
-    df = pd.concat([df_exp1, df_exp2], axis=0, ignore_index=True)
-
-    # Calculate statistics
-    descriptive_stats(df_exp1,
-                      df_exp2,
-                      'gsw')
 
     # ANOVA and Tukey's HSD
 
@@ -167,23 +101,37 @@ if __name__ == '__main__':
         for group in groups:
             for value in values:
                 print(f"Exp {exp}, grouping by {group}, parameter: {value}")
-                anovas[exp][group][value], tukeys[exp][group][value], sign_grs[exp][group][value] = plst.anova_and_tukey_stats(
-                    df[df['exp_number'] == exp],
+                anovas[exp][group][value], tukeys[exp][group][value], sign_grs[exp][group][value] = plst.anova_and_tukey_stats2(
+                    df[df['season'] == exp],
+                    value,
+                    group
+                )
+                print(anovas[exp][group][value])
+                print(tukeys[exp][group][value])
+                print(sign_grs[exp][group][value])
+                print('next')
+        for group in groups:
+            for value in values:
+                print(f"All data, grouping by {group}, parameter: {value}")
+                anovas['all'][group][value], tukeys['all'][group][value], sign_grs['all'][group][
+                    value] = plst.anova_and_tukey_stats2(
+                    df,
                     value,
                     group
                 )
                 print('next')
 
+
     # Plotting
     # Paired histograms
     for value in values:
         plst.plot_paired_histograms(
-            df[df['exp_number'] == 1],
-            df[df['exp_number'] == 2],
+            df[df['season'] == "summer"],
+            df[df['season'] == "winter"],
             value,
             units[value])
 
-    # Plotting paired boxplots with Tukey HSD significance annotations
+    # Plotting boxplots with Tukey HSD significance annotations
     for group in groups:
         for value in values:
             # Decide hues
@@ -192,36 +140,21 @@ if __name__ == '__main__':
             else:
                 hue = 'treatment'
 
-            plst.plot_boxplot_pairs(df[df['exp_number'] == 1],
-                                    df[df['exp_number'] == 2],
-                                    sign_grs[1][group][value],
-                                    sign_grs[2][group][value],
-                                    x=group,
-                                    y=value,
-                                    hue=hue)
+            plst.plot_scatter_with_quartiles(df[df['season'] == 'summer'],
+                                             df[df['season'] == 'winter'],
+                                             sign_grs['summer'][group][value],
+                                             sign_grs['winter'][group][value],
+                                             x=group,
+                                             y=value)
 
-    # Plotting single boxplots for treatment-cultivar groups
-    anovas_tc = defaultdict(lambda: defaultdict(dict))
-    tukeys_tc = defaultdict(lambda: defaultdict(dict))
-    sign_grs_tc = defaultdict(lambda: defaultdict(dict))
-    for exp in exps:
-        for value in values:
-            print(f"Exp {exp}, grouping by treatment and cultivar, parameter: {value}")
-            try:
-                anovas_tc[exp][value], tukeys_tc[exp][value], sign_grs_tc[exp][value] = plst.anova_and_tukey_stats(
-                    df[df['exp_number'] == exp],
-                    value,
-                    'treatment_cultivar'
-                )
-            except AttributeError:
-                print('something wrong with this one')
-            print('next')
+            plst.plot_single_boxplot(df,
+                                     sign_grs['all'][group][value],
+                                     x=group,
+                                     y=value,
+                                     hue=hue)
 
-    for value in values:
-        plst.plot_boxplot_pairs(df[df['exp_number'] == 1],
-                                df[df['exp_number'] == 2],
-                                sign_grs_tc[1][value],
-                                sign_grs_tc[2][value],
-                                x='treatment_cultivar',
-                                y=value,
-                                hue='measurement')
+    plst.plot_multiple_scatterplots(df,
+                                    x='treatment',
+                                    y='gsw',
+                                    hue='leaf_position',
+                                    y_units='mol m-2 s-1')
