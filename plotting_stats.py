@@ -9,64 +9,7 @@ from scipy.stats import ttest_ind
 import os
 
 
-def anova_and_tukey_stats(data: pd.DataFrame,
-                          values: str,
-                          groups: str,
-                          alpha: float = 0.05):
-    """
-    Gets ANOVA, Tukey's HSD, and plottable Tukey group statistics for boxplots.
-    :param data: DataFrame for experimental data.
-    :param values: Column name with values to run ANOVA on.
-    :param groups: Column name with categorical groups.
-    :param alpha: Significance level (default: 0.05).
-    :return: ANOVA results, Tukey's HSD results, and a dictionary with formatted Tukey significance groups.
-    """
-    # Perform ANOVA
-    anova = ols(f"{values} ~ C({groups})", data=data).fit()
-    anova_results = sm.stats.anova_lm(anova, typ=2)
-
-    # Perform Tukey's HSD
-    tukey_results = pairwise_tukeyhsd(endog=data[values], groups=data[groups], alpha=alpha)
-    results = pd.DataFrame(tukey_results.summary().data[1:], columns=tukey_results.summary().data[0])
-
-    # Extract unique groups
-    unique_groups = sorted(tukey_results.groupsunique)
-
-    # Dictionary to store letter assignments
-    group_letters = {group: set() for group in unique_groups}
-
-    # Start letter assignment
-    assigned_letters = []  # List of sets containing grouped treatments
-    letter = ord('a')  # ASCII value for 'a'
-
-    for group in unique_groups:
-        possible_letters = set()
-        for existing_group in assigned_letters:
-            # Check if the group is NOT significantly different from any member of an existing group
-            non_significant = results[
-                ((results["group1"] == group) & (results["group2"].isin(existing_group))) |
-                ((results["group2"] == group) & (results["group1"].isin(existing_group)))
-                ]["reject"].eq(False).all()
-
-            if non_significant:
-                possible_letters.update(group_letters[next(iter(existing_group))])
-                existing_group.add(group)
-
-        # If no matching group was found, assign a new letter
-        if not possible_letters:
-            possible_letters.add(chr(letter))
-            assigned_letters.append({group})
-            letter += 1
-
-        group_letters[group] = possible_letters
-
-    # Convert sets to sorted, comma-separated strings
-    tukey_groups = {group: ", ".join(sorted(group_letters[group])) for group in unique_groups}
-
-    return anova_results, tukey_results, tukey_groups
-
-
-def anova_and_tukey_stats2(df: pd.DataFrame,
+def anova_and_tukey_stats(df: pd.DataFrame,
                           y: str,
                           x: str,
                           alpha: float = 0.05):

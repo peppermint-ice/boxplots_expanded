@@ -34,7 +34,7 @@ if __name__ == '__main__':
     for group in groups:
         for value in values:
             print(f"Grouping by {group}, parameter: {value}")
-            anovas[group][value], tukeys[group][value], sign_grs[group][value] = plst.anova_and_tukey_stats2(
+            anovas[group][value], tukeys[group][value], sign_grs[group][value] = plst.anova_and_tukey_stats(
                 df,
                 value,
                 group

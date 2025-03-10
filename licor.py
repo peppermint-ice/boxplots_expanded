@@ -101,7 +101,7 @@ if __name__ == '__main__':
         for group in groups:
             for value in values:
                 print(f"Exp {exp}, grouping by {group}, parameter: {value}")
-                anovas[exp][group][value], tukeys[exp][group][value], sign_grs[exp][group][value] = plst.anova_and_tukey_stats2(
+                anovas[exp][group][value], tukeys[exp][group][value], sign_grs[exp][group][value] = plst.anova_and_tukey_stats(
                     df[df['season'] == exp],
                     value,
                     group
@@ -114,7 +114,7 @@ if __name__ == '__main__':
             for value in values:
                 print(f"All data, grouping by {group}, parameter: {value}")
                 anovas['all'][group][value], tukeys['all'][group][value], sign_grs['all'][group][
-                    value] = plst.anova_and_tukey_stats2(
+                    value] = plst.anova_and_tukey_stats(
                     df,
                     value,
                     group
